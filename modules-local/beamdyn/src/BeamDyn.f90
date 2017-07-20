@@ -3697,14 +3697,14 @@ SUBROUTINE BD_DynamicSolutionGA2( x, OtherState, u, p, m, ErrStat, ErrMsg)
          ! Check for convergence
        Enorm = SQRT(abs(DOT_PRODUCT(m%LP_RHS_LU, m%LP_RHS(7:p%dof_total))))
 
-       CALL BD_UpdateDynamicGA2(p,m,x,OtherState)
-
        IF(i==1) THEN
            Eref = Enorm*p%tol
            IF(Enorm .LE. 1.0_DbKi) RETURN       !FIXME: Do we want a hardcoded limit like this?
        ELSE
            IF(Enorm .LE. Eref) RETURN
        ENDIF
+
+       CALL BD_UpdateDynamicGA2(p,m,x,OtherState)
 
    ENDDO
 
@@ -3814,6 +3814,7 @@ SUBROUTINE BD_ElementMatrixGA2(  fact, nelem, p, x, OtherState, m )
    INTEGER(IntKi)               :: j
    INTEGER(IntKi)               :: idx_dof1
    INTEGER(IntKi)               :: idx_dof2
+   REAL(BDKi)			:: tmp1, tmp2, tmp3, tmp4, tmp12, tmp21, tmp31, tmp42
    CHARACTER(*), PARAMETER      :: RoutineName = 'BD_ElementMatrixGA2'
 
    m%elk(:,:,:,:) = 0.0_BDKi
@@ -3840,18 +3841,31 @@ SUBROUTINE BD_ElementMatrixGA2(  fact, nelem, p, x, OtherState, m )
       ! Equations 10, 11, 12 in Wang_2014
       IF(fact) THEN
          DO j=1,p%nodes_per_elem
+            tmp1=p%Shp(j,idx_qp)* p%QPtWeight(idx_qp)
+            tmp2=p%ShpDer(j,idx_qp)* p%QPtWeight(idx_qp)
+            tmp3=tmp1* p%Jacobian(idx_qp,nelem) 
+            tmp4=tmp2/ p%Jacobian(idx_qp,nelem)
+
             DO idx_dof2=1,p%dof_node
                DO i=1,p%nodes_per_elem
+                  tmp12=tmp1* p%ShpDer(i,idx_qp)
+                  tmp21=tmp2* p%Shp(i,idx_qp)
+                  tmp31=tmp3* p%Shp(i,idx_qp)
+                  tmp42=tmp4* p%ShpDer(i,idx_qp)
+                  
                   DO idx_dof1=1,p%dof_node
-                     m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Qe(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
-                     m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Pe(idx_dof1,idx_dof2,idx_qp,nelem)  *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)
-                     m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Oe(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%QPtWeight(idx_qp)
-                     m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Stif(idx_dof1,idx_dof2,idx_qp,nelem)*p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)/p%Jacobian(idx_qp,nelem)
-                     m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Ki(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                     !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Qe(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                     !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Pe(idx_dof1,idx_dof2,idx_qp,nelem)  *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)
+                     !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Oe(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%QPtWeight(idx_qp)
+                     !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Stif(idx_dof1,idx_dof2,idx_qp,nelem)*p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)/p%Jacobian(idx_qp,nelem)
+                     !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Ki(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
 
-                     m%elm(idx_dof1,i,idx_dof2,j) = m%elm(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Mi(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                     !m%elm(idx_dof1,i,idx_dof2,j) = m%elm(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Mi(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
 
-                     m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Gi(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                     !m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Gi(idx_dof1,idx_dof2,idx_qp,nelem)  *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                     m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + tmp31* m%qp%Qe(idx_dof1,idx_dof2,idx_qp,nelem) + tmp21* m%qp%Pe(idx_dof1,idx_dof2,idx_qp,nelem) + tmp12* m%qp%Oe(idx_dof1,idx_dof2,idx_qp,nelem) + tmp42* m%qp%Stif(idx_dof1,idx_dof2,idx_qp,nelem) + tmp31* m%qp%Ki(idx_dof1,idx_dof2,idx_qp,nelem)
+                     m%elm(idx_dof1,i,idx_dof2,j) = m%elm(idx_dof1,i,idx_dof2,j) + tmp31* m%qp%Mi(idx_dof1,idx_dof2,idx_qp,nelem)  
+                     m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + tmp31* m%qp%Gi(idx_dof1,idx_dof2,idx_qp,nelem)                
                   ENDDO
                ENDDO
             ENDDO
@@ -3860,18 +3874,30 @@ SUBROUTINE BD_ElementMatrixGA2(  fact, nelem, p, x, OtherState, m )
          ! Dissipative terms
          IF(p%damp_flag .NE. 0) THEN
             DO j=1,p%nodes_per_elem
+            tmp1=p%Shp(j,idx_qp) *p%QPtWeight(idx_qp)
+            tmp2=p%ShpDer(j,idx_qp) *p%QPtWeight(idx_qp)
+            tmp3=tmp1* p%Jacobian(idx_qp,nelem) 
+            tmp4=tmp2/ p%Jacobian(idx_qp,nelem)
+
                DO idx_dof2=1,p%dof_node
                   DO i=1,p%nodes_per_elem
-                     DO idx_dof1=1,p%dof_node
-                        m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Qd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
-                        m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Pd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)
-                        m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Od(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%QPtWeight(idx_qp)
-                        m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Sd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)/p%Jacobian(idx_qp,nelem)
+                  tmp12=tmp1* p%ShpDer(i,idx_qp)
+                  tmp21=tmp2* p%Shp(i,idx_qp)
+                  tmp31=tmp3* p%Shp(i,idx_qp)
+                  tmp42=tmp4* p%ShpDer(i,idx_qp)
 
-                        m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Xd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
-                        m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Yd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)
-                        m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Gd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%QPtWeight(idx_qp)
-                        m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%betaC(idx_dof1,idx_dof2,idx_qp,nelem)*p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)/p%Jacobian(idx_qp,nelem)
+                     DO idx_dof1=1,p%dof_node
+                        !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Qd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                        !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Pd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)
+                        !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Od(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%QPtWeight(idx_qp)
+                        !m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Sd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)/p%Jacobian(idx_qp,nelem)
+
+                        !m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Xd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+                        !m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%Shp(i,idx_qp)   *m%qp%Yd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)
+                        !m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%Gd(idx_dof1,idx_dof2,idx_qp,nelem)   *p%Shp(j,idx_qp)   *p%QPtWeight(idx_qp)
+                        !m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + p%ShpDer(i,idx_qp)*m%qp%betaC(idx_dof1,idx_dof2,idx_qp,nelem)*p%ShpDer(j,idx_qp)*p%QPtWeight(idx_qp)/p%Jacobian(idx_qp,nelem)
+                        m%elk(idx_dof1,i,idx_dof2,j) = m%elk(idx_dof1,i,idx_dof2,j) + tmp31* m%qp%Qd(idx_dof1,idx_dof2,idx_qp,nelem) + tmp21* m%qp%Pd(idx_dof1,idx_dof2,idx_qp,nelem) + tmp12* m%qp%Od(idx_dof1,idx_dof2,idx_qp,nelem) + tmp42* m%qp%Sd(idx_dof1,idx_dof2,idx_qp,nelem)
+                        m%elg(idx_dof1,i,idx_dof2,j) = m%elg(idx_dof1,i,idx_dof2,j) + tmp31* m%qp%Xd(idx_dof1,idx_dof2,idx_qp,nelem) + tmp21* m%qp%Yd(idx_dof1,idx_dof2,idx_qp,nelem) + tmp12* m%qp%Gd(idx_dof1,idx_dof2,idx_qp,nelem) + tmp42* m%qp%betaC(idx_dof1,idx_dof2,idx_qp,nelem)
                      ENDDO
                   ENDDO
                ENDDO
@@ -3882,10 +3908,13 @@ SUBROUTINE BD_ElementMatrixGA2(  fact, nelem, p, x, OtherState, m )
 
       ! Equations 13 and 14 in Wang_2014. F^ext is combined with F^D (F^D = F^D-F^ext)
       DO i=1,p%nodes_per_elem
+         tmp1=p%Shp(i,idx_qp)* p%Jacobian(idx_qp,nelem)* p%QPtWeight(idx_qp)
+         tmp2=p%ShpDer(i,idx_qp)* p%QPtWeight(idx_qp)
          DO idx_dof1=1,p%dof_node
-            m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - p%Shp(i,idx_qp)   *m%qp%Fd(idx_dof1,idx_qp,nelem)*p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
-            m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - p%ShpDer(i,idx_qp)*m%qp%Fc(idx_dof1,idx_qp,nelem)*p%QPtWeight(idx_qp)
-            m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - p%Shp(i,idx_qp)   *m%qp%Fi(idx_dof1,idx_qp,nelem)*p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+            !m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - p%Shp(i,idx_qp)   *m%qp%Fd(idx_dof1,idx_qp,nelem)*p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+            !m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - p%ShpDer(i,idx_qp)*m%qp%Fc(idx_dof1,idx_qp,nelem)*p%QPtWeight(idx_qp)
+            !m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - p%Shp(i,idx_qp)   *m%qp%Fi(idx_dof1,idx_qp,nelem)*p%Jacobian(idx_qp,nelem)*p%QPtWeight(idx_qp)
+            m%elf(idx_dof1,i,nelem) = m%elf(idx_dof1,i,nelem) - tmp1* m%qp%Fd(idx_dof1,idx_qp,nelem) - tmp2* m%qp%Fc(idx_dof1,idx_qp,nelem) - tmp1* m%qp%Fi(idx_dof1,idx_qp,nelem)
          ENDDO
       ENDDO
 
